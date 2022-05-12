@@ -1,0 +1,19 @@
+columns:
+  - string-schema:
+      column-name: name
+      max-length: 100
+      min-length: 3
+      regex: "[a-zA-Z]*"
+  - string-schema:
+      column-name: city
+      allowed-values: 
+        - Mumbai
+        - Pune
+        - Delhi
+  - boolean-schema:
+      column-name: selfEmployed
+  - integer-schema:
+      column-name: age
+      min: 10
+      max: 100
+      required: false

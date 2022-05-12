@@ -1,0 +1,16 @@
+target/
+.bloop
+.bsp
+.idea
+.vscode
+.metals
+.bsp
+**/metals.sbt
+./*.json
+*.csv
+.DS_Store
+*.phd
+*.txt
+*.trc
+TestApp.scala
+*.o
