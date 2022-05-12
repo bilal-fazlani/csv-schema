@@ -1,0 +1,42 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - README.md
+      - 'mkdocs.yml'
+      - Pipfile
+      - 'netlify.toml'
+      - '.github/workflows/scala-steward.yml'
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - README.md
+      - 'mkdocs.yml'
+      - Pipfile
+      - 'netlify.toml'
+      - '.github/workflows/scala-steward.yml'
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/cache@v2
+      with:
+        key: ${{ runner.os }}-scala
+        path: | 
+          ~/.ivy2/cache
+          ~/.sbt
+    - name: Set up JDK 11
+      uses: actions/setup-java@v2
+      with:
+        java-version: 11
+        distribution: 'adopt'
+    - name: Compile and run tests
+      run: sbt ";clean ;test"

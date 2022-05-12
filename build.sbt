@@ -4,7 +4,7 @@ lazy val csvSchema = project
   .in(file("./csv-schema"))
   .settings(
     organization := "com.bilal-fazlani",
-    name := "csv-validation",
+    name := "csv-schema",
     version := "0.1.0-SNAPSHOT",
     scalaVersion := scala3Version,
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
