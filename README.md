@@ -1,6 +1,16 @@
 # CSV Schema
 
+![Maven Central](https://img.shields.io/maven-central/v/com.bilal-fazlani/csv-schema_3?color=blue&label=Latest%20Version&style=for-the-badge)
+
 Validate csv files agaists a schema
+
+### Dependencies
+
+Supports Scala 3 and ZIO 2.0.0
+
+```scala
+libraryDependencies += "com.bilal-fazlani" %% "csv-schema" % "<VERSION>"
+```
 
 ### Example
 
