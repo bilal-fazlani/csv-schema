@@ -16,6 +16,7 @@ ThisBuild / developers := List(
     url("https://bilal-fazlani.com")
   )
 )
+ThisBuild / licenses := List("MIT License" -> url("https://github.com/bilal-fazlani/csv-schema/blob/main/LICENSE"))
 ThisBuild / homepage := Some(url("https://github.com/bilal-fazlani/csv-schema"))
 
 lazy val csvSchema = project
