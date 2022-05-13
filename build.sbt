@@ -1,13 +1,27 @@
-val scala3Version = "3.1.2"
+ThisBuild / scalaVersion := "3.1.2"
+ThisBuild / organization := "com.bilal-fazlani"
+ThisBuild / organizationName := "Bilal Fazlani"
+ThisBuild / testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
+ThisBuild / scmInfo := Some(
+  ScmInfo(
+    url("https://github.com/bilal-fazlani/csv-schema"),
+    "https://github.com/bilal-fazlani/csv-schema.git"
+  )
+)
+ThisBuild / developers := List(
+  Developer(
+    "bilal-fazlani",
+    "Bilal Fazlani",
+    "bilal.m.fazlani@gmail.com",
+    url("https://bilal-fazlani.com")
+  )
+)
+ThisBuild / homepage := Some(url("https://github.com/bilal-fazlani/csv-schema"))
 
 lazy val csvSchema = project
   .in(file("./csv-schema"))
   .settings(
-    organization := "com.bilal-fazlani",
     name := "csv-schema",
-    version := "0.1.0-SNAPSHOT",
-    scalaVersion := scala3Version,
-    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
     libraryDependencies ++= Seq(
       Libs.zio,
       Libs.zioNio,
@@ -23,10 +37,8 @@ lazy val csvSchema = project
 lazy val example = project
   .in(file("./example"))
   .settings(
-    organization := "com.bilal-fazlani",
     name := "example",
     publish / skip := true,
-    scalaVersion := scala3Version,
     excludeDependencies += Libs.stdLib
   )
   .dependsOn(csvSchema)
