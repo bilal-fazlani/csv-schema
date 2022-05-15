@@ -50,7 +50,7 @@ enum CsvFailure:
       children.prepended(top).mkString(Properties.lineSeparator)
 
     case CsvFailure.ProcessingError(path, cause) =>
-      val top = s"error occured while processing the file - $path"
+      val top = s"error occured while executing aggregate sink for file - $path"
       val children = cause.getStackTrace
         .map(st => "  " + st.toString)
       children.prepended(top).mkString(Properties.lineSeparator)

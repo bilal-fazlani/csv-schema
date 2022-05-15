@@ -120,20 +120,20 @@ object CsvPathValidation {
   def validateFileWithSink[R, L, Z](
       path: Path,
       schema: CsvSchema,
-      sink: ZSink[R, Throwable, Byte, L, Z]
+      aggregateSink: ZSink[R, Throwable, Byte, L, Z]
   ): ZIO[Scope & R, CsvFailure, Z] = {
 
     ZStream
       .fromFile(path.toFile, 1024)
-      .broadcast(2, 2)
+      .broadcast(2, 100)
       .flatMap { streams =>
         val validationStream = streams(0)
-        val customStream = streams(1)
+        val aggregateStream = streams(1)
 
         for {
           validationRef <- validateStream(validationStream)(path, schema).fork
-          resultRef <- (customStream >>> sink)
-            .mapError(t => CsvFailure.ProcessingError(path, t))
+          resultRef <- (aggregateStream >>> aggregateSink)
+            .mapError(CsvFailure.ProcessingError(path, _))
             .fork
           result <- validationRef.join *> resultRef.join
         } yield result
@@ -143,7 +143,7 @@ object CsvPathValidation {
   def validateFile(
       path: Path,
       schema: CsvSchema
-  ): IO[CsvFailure, Unit] = 
+  ): IO[CsvFailure, Unit] =
     validateStream(ZStream.fromFile(path.toFile, 1024))(path, schema)
 
   def validateDirectory(
