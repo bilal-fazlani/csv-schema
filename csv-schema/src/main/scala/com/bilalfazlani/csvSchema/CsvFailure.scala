@@ -15,7 +15,8 @@ enum CsvFailure:
       lineNumber: Long,
       errorMessage: String
   )
-  case ReadingError(file: Path, error: String, cause: Exception)
+  case ReadingError(file: Path, error: String, cause: Throwable)
+  case ProcessingError(file: Path, cause: Throwable)
   case Multiple(errors: Seq[CsvFailure])
 
   infix def +(e: CsvFailure): CsvFailure.Multiple = (this, e) match {
@@ -42,9 +43,16 @@ enum CsvFailure:
       val top = s"syntax error at ${path}:$lineNumber"
       val bottom = pad(message, 1)
       top + Properties.lineSeparator + bottom
+
     case CsvFailure.SchemaValidationError(path, lineNumber, errors) =>
       val top = s"validation failed at ${path}:$lineNumber"
       val children = errors.map(e => showFieldValidationError(e))
+      children.prepended(top).mkString(Properties.lineSeparator)
+
+    case CsvFailure.ProcessingError(path, cause) =>
+      val top = s"error occured while processing the file - $path"
+      val children = cause.getStackTrace
+        .map(st => "  " + st.toString)
       children.prepended(top).mkString(Properties.lineSeparator)
   }
 
