@@ -7,6 +7,8 @@ import zio.nio.charset.Charset
 import java.io.IOException
 import zio.stream.{ZStream, ZPipeline}
 import zio.prelude.Validation
+import zio.stream.ZSink
+import zio.Scope
 
 object CsvPathValidation {
 
@@ -83,25 +85,61 @@ object CsvPathValidation {
     ZPipeline
       .mapAccum[A, Long, (A, Long)](1L)((index, a) => (index + 1, (a, index)))
 
-  private def validateFile(
+  def validateStream(
+      source: ZStream[Any, CsvFailure, String]
+  )(
       path: Path,
       schema: CsvSchema
-  ): IO[CsvFailure, Unit] = {
+  ) =
+    val sink = (zipWithLineNumber[String] // add line numbers
+      .andThen(ZPipeline.drop(1)) // drop header
+      .andThen( // validate lines
+        ZPipeline.map[(String, Long), Either[CsvFailure, Unit]](
+          (line, lineNumber) => validateLine(path, line, lineNumber, schema)
+        )
+      )
+      // take errors only
+      .andThen(ZPipeline.collect { case Left(e) =>
+        e
+      }) >>> ZSink.collectAll)
+      .map(_.reverse)
+
+    (source >>> sink).foldZIO(
+      ZIO.fail,
+      errors =>
+        if errors.isEmpty then ZIO.succeed(())
+        else ZIO.fail(errors.reduce(_ + _))
+    )
+
+  def validateFileWithSink[R, L, Z](
+      path: Path,
+      schema: CsvSchema,
+      sink: ZSink[R, CsvFailure, String, L, Z]
+  ): ZIO[Scope & R, CsvFailure, Z] = {
     Files
       .lines(path)
       .mapError(e => CsvFailure.ReadingError(path, e.getMessage, e))
-      .via(zipWithLineNumber)
-      .drop(1) // ignore csv header line
-      .map((line, lineNumber) => validateLine(path, line, lineNumber, schema))
-      .collectLeft
-      .runCollect
-      .map(_.reverse)
-      .foldZIO(
-        ZIO.fail,
-        errors =>
-          if errors.isEmpty then ZIO.succeed(())
-          else ZIO.fail(errors.reduce(_ + _))
-      )
+      .broadcast(2, 2)
+      .flatMap { streams =>
+        val validationStream = streams(0)
+        val customStream = streams(1)
+        for {
+          validationRef <- validateStream(validationStream)(path, schema).fork
+          resultRef <- (customStream >>> sink).fork
+          result <- validationRef.join *> resultRef.join
+        } yield result
+      }
+  }
+
+  def validateFile(
+      path: Path,
+      schema: CsvSchema
+  ): IO[CsvFailure, Unit] = {
+    val stream = Files
+      .lines(path)
+      .mapError(e => CsvFailure.ReadingError(path, e.getMessage, e))
+
+    validateStream(stream)(path, schema)
   }
 
   def validateDirectory(
