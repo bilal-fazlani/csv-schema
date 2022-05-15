@@ -5,7 +5,7 @@ import zio.nio.file.Path
 import zio.nio.file.Files
 import zio.nio.charset.Charset
 import java.io.IOException
-import zio.stream.ZStream
+import zio.stream.{ZStream, ZPipeline}
 import zio.prelude.Validation
 
 object CsvPathValidation {
@@ -42,7 +42,6 @@ object CsvPathValidation {
 
   private def validateLine(
       path: Path,
-      header: Header,
       line: String,
       lineNumber: Long,
       schema: CsvSchema
@@ -59,12 +58,12 @@ object CsvPathValidation {
         )
         else Right(())
       result2 <-
-        if (length != header.value.length)(
+        if (length != schema.columns.length)(
           Left(
             CsvFailure.SyntaxValidationError(
               path,
               lineNumber,
-              s"${length} value(s) found. expected number of values: ${header.value.length}"
+              s"${length} value(s) found. expected number of values: ${schema.columns.length}"
             )
           )
         )
@@ -80,20 +79,21 @@ object CsvPathValidation {
         )
     } yield ()
 
-  private def validateSinglePath(
+  def zipWithLineNumber[A] =
+    ZPipeline
+      .mapAccum[A, Long, (A, Long)](1L)((index, a) => (index + 1, (a, index)))
+
+  private def validateFile(
       path: Path,
-      header: Header,
       schema: CsvSchema
   ): IO[CsvFailure, Unit] = {
     Files
       .lines(path)
       .mapError(e => CsvFailure.ReadingError(path, e.getMessage, e))
-      .zipWithIndex
-      .map { case (line, index) =>
-        if index != 0 then validateLine(path, header, line, index + 1, schema)
-        else Right(())
-      }
-      .collect { case Left(e) => e }
+      .via(zipWithLineNumber)
+      .drop(1) // ignore csv header line
+      .map((line, lineNumber) => validateLine(path, line, lineNumber, schema))
+      .collectLeft
       .runCollect
       .map(_.reverse)
       .foldZIO(
@@ -103,12 +103,6 @@ object CsvPathValidation {
           else ZIO.fail(errors.reduce(_ + _))
       )
   }
-
-  def validateFile(path: Path, schema: CsvSchema): IO[CsvFailure, List[Path]] =
-    for {
-      header <- csvHeaderOf(path)
-      _ <- validateSinglePath(path, header, schema)
-    } yield List(path)
 
   def validateDirectory(
       path: Path,
@@ -141,9 +135,7 @@ object CsvPathValidation {
       )
       allCsvFilesValidation <-
         ZIO
-          .validatePar(allCsvPaths)(p =>
-            validateSinglePath(p, firstHeader, schema)
-          )
+          .validatePar(allCsvPaths)(p => validateFile(p, schema))
           .unit
           .mapError(_.reduce(_ + _))
     } yield allCsvPaths
