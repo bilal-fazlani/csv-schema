@@ -9,8 +9,23 @@ import zio.stream.{ZStream, ZPipeline}
 import zio.prelude.Validation
 import zio.stream.ZSink
 import zio.Scope
+import zio.NonEmptyChunk
+import zio.config.magnolia.examples.P
 
-object CsvPathValidation {
+trait CsvPathValidation {
+  def validateFiles(
+      schema: CsvSchema,
+      paths: NonEmptyChunk[Path]
+  ): IO[CsvFailure, Unit]
+
+  def validateFilesAndAggregate[R, Z](
+      schema: CsvSchema,
+      paths: NonEmptyChunk[Path],
+      sink: ZSink[R, Throwable, Byte, ?, Z]
+  )(using reduce: (Z, Z) => Z): ZIO[Scope & R, CsvFailure, Z]
+}
+
+object CsvPathValidation extends CsvPathValidation {
 
   case class Header(value: List[String])
 
@@ -81,11 +96,11 @@ object CsvPathValidation {
         )
     } yield ()
 
-  def zipWithLineNumber[A] =
+  private def zipWithLineNumber[A] =
     ZPipeline
       .mapAccum[A, Long, (A, Long)](1L)((index, a) => (index + 1, (a, index)))
 
-  def validateStream(
+  private def validateStream(
       source: ZStream[Any, Throwable, Byte]
   )(
       path: Path,
@@ -117,14 +132,13 @@ object CsvPathValidation {
         else ZIO.fail(errors.reduce(_ + _))
     )
 
-  def validateFileWithSink[R, L, Z](
+  private def validateFileWithAggregation[R, L, Z](
+      source: ZStream[Any, Throwable, Byte],
       path: Path,
       schema: CsvSchema,
       aggregateSink: ZSink[R, Throwable, Byte, L, Z]
   ): ZIO[Scope & R, CsvFailure, Z] = {
-
-    ZStream
-      .fromFile(path.toFile, 1024)
+    source
       .broadcast(2, 100)
       .flatMap { streams =>
         val validationStream = streams(0)
@@ -140,56 +154,47 @@ object CsvPathValidation {
       }
   }
 
-  def validateFile(
-      path: Path,
-      schema: CsvSchema
-  ): IO[CsvFailure, Unit] =
-    validateStream(ZStream.fromFile(path.toFile, 1024))(path, schema)
-
-  def validateDirectory(
-      path: Path,
-      schema: CsvSchema
-  ): IO[CsvFailure, List[Path]] = {
-    for {
-      allCsvPaths <- findCsvFiles(path)
-      allCsvFilesValidation <-
-        ZIO
-          .validatePar(allCsvPaths)(p => validateFile(p, schema))
-          .unit
-          .mapError(_.reduce(_ + _))
-    } yield allCsvPaths
-  }
-
-  def validateDirectoryWithFileSink[R, L, Z](
-      path: Path,
+  def validateFiles(
       schema: CsvSchema,
-      aggregateSink: ZSink[R, Throwable, Byte, L, Z]
-  ): ZIO[Scope & R, CsvFailure, Map[Path, Z]] = {
+      paths: NonEmptyChunk[Path]
+  ): IO[CsvFailure, Unit] =
     for {
-      allCsvPaths <- findCsvFiles(path)
-      allCsvFilesValidation <-
+      _ <- validateCsvHeaders(paths)
+      _ <-
         ZIO
-          .validatePar(allCsvPaths)(p =>
-            validateFileWithSink(p, schema, aggregateSink).map(z => (p, z))
+          .validatePar(paths)(p =>
+            validateStream(ZStream.fromFile(p.toFile, 1024))(p, schema)
           )
           .mapError(_.reduce(_ + _))
-    } yield allCsvFilesValidation.toMap
-  }
+    } yield ()
 
-  private def findCsvFiles(directory: Path): IO[CsvFailure, List[Path]] =
-    val find = Files
-      .find(directory, 10, Set.empty)((p, attr) =>
-        p.filename.toString.toLowerCase.endsWith(".csv") && p.toFile.isFile
-      )
-      .runCollect
-      .map(_.toList)
-      .mapError(e => CsvFailure.ReadingError(directory, e.getMessage, e))
+  def validateFilesAndAggregate[R, Z](
+      schema: CsvSchema,
+      paths: NonEmptyChunk[Path],
+      sink: ZSink[R, Throwable, Byte, ?, Z]
+  )(using reduce: (Z, Z) => Z): ZIO[Scope & R, CsvFailure, Z] =
     for {
-      allCsvPaths <- find
-      firstFile <- ZIO
-        .fromOption(allCsvPaths.headOption)
-        .mapError(_ => IOException(s"no csv files found in $directory"))
-        .mapError(e => CsvFailure.ReadingError(directory, e.getMessage, e))
+      _ <- validateCsvHeaders(paths)
+      chunks <-
+        ZIO
+          .validatePar(paths)(p =>
+            validateFileWithAggregation(
+              ZStream.fromFile(p.toFile, 1024),
+              p,
+              schema,
+              sink
+            ).map((p, _))
+          )
+          .mapError(_.reduce(_ + _))
+      sorted = chunks.sortBy(_._1.toString).map(_._2)
+      reduced = sorted.reduce(reduce)
+    } yield reduced
+
+  private def validateCsvHeaders(
+      allCsvPaths: NonEmptyChunk[Path]
+  ): IO[CsvFailure, NonEmptyChunk[Path]] =
+    val firstFile = allCsvPaths.head
+    for {
       firstHeader <- csvHeaderOf(firstFile)
       remainingHeaders <-
         ZIO.collectAllPar(allCsvPaths.drop(1).map(csvHeaderOf))
