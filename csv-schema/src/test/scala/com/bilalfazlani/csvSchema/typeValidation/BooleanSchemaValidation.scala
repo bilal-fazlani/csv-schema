@@ -1,9 +1,9 @@
 package com.bilalfazlani.csvSchema
+package typeValidation
 
 import zio.*
 import zio.test.*
 import zio.test.Assertion.*
-import ColumnSchema.BooleanSchema
 import zio.prelude.Validation
 
 object BooleanSchemaValidation extends ZIOSpecDefault {

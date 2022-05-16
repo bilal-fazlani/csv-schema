@@ -10,18 +10,17 @@ import zio.prelude.Validation
 import zio.stream.ZSink
 import zio.Scope
 import zio.NonEmptyChunk
-import zio.config.magnolia.examples.P
 
 trait CsvPathValidation {
   def validateFiles(
       schema: CsvSchema,
       paths: NonEmptyChunk[Path]
-  ): IO[CsvFailure, Unit]
+  ): ZIO[Scope, CsvFailure, Unit]
 
   def validateFile(
       schema: CsvSchema,
       path: Path
-  ): IO[CsvFailure, Unit]
+  ): ZIO[Scope, CsvFailure, Unit]
 
   def validateFileAndAggregate[R, Z](
       schema: CsvSchema,
@@ -40,35 +39,57 @@ trait CsvPathValidation {
 
 object CsvPathValidation extends CsvPathValidation {
 
-  case class Header(value: List[String])
-
-  private def csvHeaderOf(path: Path): IO[CsvFailure, Header] = for {
-    header <- Files
-      .lines(path, Charset.defaultCharset)
-      .runHead
-      .mapError(e => CsvFailure.ReadingError(path, e.getMessage, e))
-      .collect(
-        CsvFailure
-          .SyntaxValidationError(
-            path,
-            1,
-            "csv file does not contain header line"
+  private def validateHeader(
+      path: Path,
+      line: String,
+      lineNumber: Long,
+      schema: CsvSchema
+  ): Either[CsvFailure, Unit] =
+    val values = line.split(",", -1)
+    val length = values.length
+    val v = for {
+      _ <-
+        if (line.isBlank)(
+          Validation.fail(
+            CsvFailure
+              .SyntaxValidationError(path, lineNumber, s"header line is blank")
           )
-      ) {
-        case Some(headerLine) if headerLine.trim.nonEmpty =>
-          headerLine
-      }
-    headerValues = header.split(",", -1).map(_.trim).toList
-    _ <- ZIO.when(headerValues.exists(_.isEmpty))(
-      ZIO.fail(
-        CsvFailure.SyntaxValidationError(
-          path,
-          1,
-          "csv headers contains an empty entry"
         )
-      )
-    )
-  } yield Header(headerValues)
+        else Validation.unit
+      result2 <-
+        val sizeValidation = if (length != schema.columns.length)(
+          Validation.fail(
+            CsvFailure.SyntaxValidationError(
+              path,
+              lineNumber,
+              s"${length} value(s) found in header. expected number of values: ${schema.columns.length}"
+            )
+          )
+        )
+        else Validation.unit
+        val columnValidation = Validation
+          .validateAll(
+            schema.columns
+              .zip(values)
+              .map {
+                case (column, value) if column.columnName.trim == value.trim =>
+                  Validation.unit
+                case (column, value) =>
+                  Validation.fail(
+                    CsvFailure.SyntaxValidationError(
+                      path,
+                      lineNumber,
+                      s"expected header: '${column.columnName}', found: '$value'"
+                    )
+                  )
+              }
+          )
+          .map(_ => ())
+
+        Validation.validate(sizeValidation, columnValidation).map(_ => ())
+    } yield result2
+
+    v.toEither.left.map(_.reduce(_ + _))
 
   private def validateLine(
       path: Path,
@@ -118,23 +139,42 @@ object CsvPathValidation extends CsvPathValidation {
   )(
       path: Path,
       schema: CsvSchema
-  ): IO[CsvFailure, Unit] =
-    source
+  ): ZIO[Scope, CsvFailure, Unit] =
+    val stream = source
       .via(ZPipeline.utfDecode)
       .via(ZPipeline.splitLines)
       .mapError(e => CsvFailure.ReadingError(path, e.getMessage, e))
       .via(zipWithLineNumber)
-      .drop(1) // drop header line
-      .map((line, lineNumber) => validateLine(path, line, lineNumber, schema))
-      .collectLeft
-      .runCollect
-      .map(_.reverse)
-      .foldZIO(
-        ZIO.fail,
-        errors =>
-          if errors.isEmpty then ZIO.succeed(())
-          else ZIO.fail(errors.reduce(_ + _))
-      )
+      .map {
+        case (line, 1) =>
+          validateHeader(path, line, 1, schema)
+        case (line, lineNumber) =>
+          validateLine(path, line, lineNumber, schema)
+      }
+
+    stream
+      .broadcast(2, 1024)
+      .flatMap { streams =>
+        val stream1 = streams(0)
+        val stream2 = streams(1)
+        for {
+          validation <- stream1.collectLeft.runCollect
+            .map(_.reverse)
+            .foldZIO(
+              ZIO.fail,
+              errors =>
+                if errors.isEmpty then ZIO.succeed(())
+                else ZIO.fail(errors.reduce(_ + _))
+            )
+            .fork
+          countRef <- stream2.runCount.fork
+          count <- validation.join &> countRef.join
+          _ <- ZIO.when(count == 0)(
+            ZIO
+              .fail(CsvFailure.SyntaxValidationError(path, 1L, "file is empty"))
+          )
+        } yield ()
+      }
 
   private def validateFileWithAggregation[R, L, Z](
       source: ZStream[Any, Throwable, Byte],
@@ -161,21 +201,19 @@ object CsvPathValidation extends CsvPathValidation {
   def validateFile(
       schema: CsvSchema,
       path: Path
-  ): IO[CsvFailure, Unit] = validateFiles(schema, NonEmptyChunk(path))
+  ): ZIO[Scope, CsvFailure, Unit] =
+    validateFiles(schema, NonEmptyChunk(path))
 
   def validateFiles(
       schema: CsvSchema,
       paths: NonEmptyChunk[Path]
-  ): IO[CsvFailure, Unit] =
-    for {
-      _ <- validateCsvHeaders(paths)
-      _ <-
-        ZIO
-          .validatePar(paths)(p =>
-            validateStream(ZStream.fromFile(p.toFile, 1024))(p, schema)
-          )
-          .mapError(_.reduce(_ + _))
-    } yield ()
+  ): ZIO[Scope, CsvFailure, Unit] =
+    ZIO
+      .validatePar(paths)(p =>
+        validateStream(ZStream.fromFile(p.toFile, 1024))(p, schema)
+      )
+      .mapError(_.reduce(_ + _))
+      .unit
 
   def validateFileAndAggregate[R, Z](
       schema: CsvSchema,
@@ -183,15 +221,12 @@ object CsvPathValidation extends CsvPathValidation {
   )(
       aggregateSink: ZSink[R, Throwable, Byte, ?, Z]
   ): ZIO[Scope & R, CsvFailure, Z] =
-    for {
-      _ <- validateCsvHeaders(NonEmptyChunk(path))
-      result <- validateFileWithAggregation(
-        ZStream.fromFile(path.toFile, 1024),
-        path,
-        schema,
-        aggregateSink
-      )
-    } yield result
+    validateFileWithAggregation(
+      ZStream.fromFile(path.toFile, 1024),
+      path,
+      schema,
+      aggregateSink
+    )
 
   def validateFilesAndAggregate[R, Z](
       schema: CsvSchema,
@@ -199,44 +234,15 @@ object CsvPathValidation extends CsvPathValidation {
   )(
       fileSink: ZSink[R, Throwable, Byte, ?, Z]
   ): ZIO[Scope & R, CsvFailure, Map[Path, Z]] =
-    for {
-      _ <- validateCsvHeaders(paths)
-      chunks <-
-        ZIO
-          .validatePar(paths)(p =>
-            validateFileWithAggregation(
-              ZStream.fromFile(p.toFile, 1024),
-              p,
-              schema,
-              fileSink
-            ).map((p, _))
-          )
-          .mapError(_.reduce(_ + _))
-    } yield chunks.toMap
-
-  private def validateCsvHeaders(
-      allCsvPaths: NonEmptyChunk[Path]
-  ): IO[CsvFailure, NonEmptyChunk[Path]] =
-    val firstFile = allCsvPaths.head
-    for {
-      firstHeader <- csvHeaderOf(firstFile)
-      remainingHeaders <-
-        ZIO.collectAllPar(allCsvPaths.drop(1).map(csvHeaderOf))
-      headerValidation <- ZIO.collectAllPar(
-        remainingHeaders
-          .zip(allCsvPaths.drop(1))
-          .map {
-            case (h @ Header(values), _) if values == firstHeader.value =>
-              ZIO.succeed(h)
-            case (Header(values), p) =>
-              ZIO.fail(
-                CsvFailure.SyntaxValidationError(
-                  p,
-                  1,
-                  s"csv headers don't match with $firstFile"
-                )
-              )
-          }
+    ZIO
+      .validatePar(paths)(p =>
+        validateFileWithAggregation(
+          ZStream.fromFile(p.toFile, 1024),
+          p,
+          schema,
+          fileSink
+        ).map((p, _))
       )
-    } yield allCsvPaths
+      .mapError(_.reduce(_ + _))
+      .map(_.toMap)
 }

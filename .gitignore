@@ -7,7 +7,7 @@ target/
 .bsp
 **/metals.sbt
 ./*.json
-*.csv
+/*.csv
 .DS_Store
 *.phd
 *.txt

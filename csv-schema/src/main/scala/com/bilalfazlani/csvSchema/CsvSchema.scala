@@ -22,6 +22,9 @@ private given regexDesc: Descriptor[Regex] = Descriptor.from(
   )(r => r.regex)
 )
 
+// private given uniqueIndexDesc: Descriptor[UniqueIndex] =
+//   summon[Descriptor[Set[String]]]
+
 enum CsvDataType:
   case String, Integer, Boolean
 
@@ -63,8 +66,17 @@ object ColumnSchema {
   }
 }
 
+// opaque type UniqueIndex = Set[String]
+
+// extension (index: UniqueIndex) def columns: Set[String] = index
+
+// object UniqueIndex {
+//   def apply(columnNames: Set[String]): UniqueIndex = columnNames
+// }
+
 case class CsvSchema(
-    columns: List[ColumnSchema]
+    columns: List[ColumnSchema],
+    // uniqueCombinations: Set[UniqueIndex] = Set.empty
 )
 
 object CsvSchema {
