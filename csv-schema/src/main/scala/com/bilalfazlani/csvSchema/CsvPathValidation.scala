@@ -152,10 +152,44 @@ object CsvPathValidation {
   ): IO[CsvFailure, List[Path]] = {
     for {
       allCsvPaths <- findCsvFiles(path)
+      allCsvFilesValidation <-
+        ZIO
+          .validatePar(allCsvPaths)(p => validateFile(p, schema))
+          .unit
+          .mapError(_.reduce(_ + _))
+    } yield allCsvPaths
+  }
+
+  def validateDirectoryWithFileSink[R, L, Z](
+      path: Path,
+      schema: CsvSchema,
+      aggregateSink: ZSink[R, Throwable, Byte, L, Z]
+  ): ZIO[Scope & R, CsvFailure, Map[Path, Z]] = {
+    for {
+      allCsvPaths <- findCsvFiles(path)
+      allCsvFilesValidation <-
+        ZIO
+          .validatePar(allCsvPaths)(p =>
+            validateFileWithSink(p, schema, aggregateSink).map(z => (p, z))
+          )
+          .mapError(_.reduce(_ + _))
+    } yield allCsvFilesValidation.toMap
+  }
+
+  private def findCsvFiles(directory: Path): IO[CsvFailure, List[Path]] =
+    val find = Files
+      .find(directory, 10, Set.empty)((p, attr) =>
+        p.filename.toString.toLowerCase.endsWith(".csv") && p.toFile.isFile
+      )
+      .runCollect
+      .map(_.toList)
+      .mapError(e => CsvFailure.ReadingError(directory, e.getMessage, e))
+    for {
+      allCsvPaths <- find
       firstFile <- ZIO
         .fromOption(allCsvPaths.headOption)
-        .mapError(_ => IOException(s"no csv files found in $path"))
-        .mapError(e => CsvFailure.ReadingError(path, e.getMessage, e))
+        .mapError(_ => IOException(s"no csv files found in $directory"))
+        .mapError(e => CsvFailure.ReadingError(directory, e.getMessage, e))
       firstHeader <- csvHeaderOf(firstFile)
       remainingHeaders <-
         ZIO.collectAllPar(allCsvPaths.drop(1).map(csvHeaderOf))
@@ -175,19 +209,5 @@ object CsvPathValidation {
               )
           }
       )
-      allCsvFilesValidation <-
-        ZIO
-          .validatePar(allCsvPaths)(p => validateFile(p, schema))
-          .unit
-          .mapError(_.reduce(_ + _))
     } yield allCsvPaths
-  }
-
-  private def findCsvFiles(directory: Path) = Files
-    .find(directory, 10, Set.empty)((p, attr) =>
-      p.filename.toString.toLowerCase.endsWith(".csv") && p.toFile.isFile
-    )
-    .runCollect
-    .map(_.toList)
-    .mapError(e => CsvFailure.ReadingError(directory, e.getMessage, e))
 }
