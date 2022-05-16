@@ -18,11 +18,25 @@ trait CsvPathValidation {
       paths: NonEmptyChunk[Path]
   ): IO[CsvFailure, Unit]
 
+  def validateFile(
+      schema: CsvSchema,
+      path: Path
+  ): IO[CsvFailure, Unit]
+
   def validateFilesAndAggregate[R, Z](
       schema: CsvSchema,
-      paths: NonEmptyChunk[Path],
+      paths: NonEmptyChunk[Path]
+  )(
+      sink: ZSink[R, Throwable, Byte, ?, Z],
+      reduce: (Z, Z) => Z
+  ): ZIO[Scope & R, CsvFailure, Z]
+
+  def validateFileAndAggregate[R, Z](
+      schema: CsvSchema,
+      path: Path
+  )(
       sink: ZSink[R, Throwable, Byte, ?, Z]
-  )(using reduce: (Z, Z) => Z): ZIO[Scope & R, CsvFailure, Z]
+  ): ZIO[Scope & R, CsvFailure, Z]
 }
 
 object CsvPathValidation extends CsvPathValidation {
@@ -154,6 +168,11 @@ object CsvPathValidation extends CsvPathValidation {
       }
   }
 
+  def validateFile(
+      schema: CsvSchema,
+      path: Path
+  ): IO[CsvFailure, Unit] = validateFiles(schema, NonEmptyChunk(path))
+
   def validateFiles(
       schema: CsvSchema,
       paths: NonEmptyChunk[Path]
@@ -168,11 +187,24 @@ object CsvPathValidation extends CsvPathValidation {
           .mapError(_.reduce(_ + _))
     } yield ()
 
+  def validateFileAndAggregate[R, Z](
+      schema: CsvSchema,
+      path: Path
+  )(
+      sink: ZSink[R, Throwable, Byte, ?, Z]
+  ): ZIO[Scope & R, CsvFailure, Z] =
+    validateFilesAndAggregate(
+      schema,
+      NonEmptyChunk(path)
+    )(sink, (a, _) => a)
+
   def validateFilesAndAggregate[R, Z](
       schema: CsvSchema,
-      paths: NonEmptyChunk[Path],
-      sink: ZSink[R, Throwable, Byte, ?, Z]
-  )(using reduce: (Z, Z) => Z): ZIO[Scope & R, CsvFailure, Z] =
+      paths: NonEmptyChunk[Path]
+  )(
+      sink: ZSink[R, Throwable, Byte, ?, Z],
+      reduce: (Z, Z) => Z
+  ): ZIO[Scope & R, CsvFailure, Z] =
     for {
       _ <- validateCsvHeaders(paths)
       chunks <-
