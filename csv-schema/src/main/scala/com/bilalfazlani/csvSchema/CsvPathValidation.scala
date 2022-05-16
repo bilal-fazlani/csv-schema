@@ -109,7 +109,7 @@ object CsvPathValidation extends CsvPathValidation {
         )
     } yield ()
 
-  private def zipWithLineNumber[A] =
+  private def zipWithLineNumber[A]: ZPipeline[Any, Nothing, A, (A, Long)] =
     ZPipeline
       .mapAccum[A, Long, (A, Long)](1L)((index, a) => (index + 1, (a, index)))
 
@@ -119,31 +119,22 @@ object CsvPathValidation extends CsvPathValidation {
       path: Path,
       schema: CsvSchema
   ): IO[CsvFailure, Unit] =
-    val sink = (zipWithLineNumber[String] // add line numbers
-      .andThen(ZPipeline.drop(1)) // drop header
-      .andThen( // validate lines
-        ZPipeline.map[(String, Long), Either[CsvFailure, Unit]](
-          (line, lineNumber) => validateLine(path, line, lineNumber, schema)
-        )
-      )
-      // take errors only
-      .andThen(ZPipeline.collect { case Left(e) =>
-        e
-      }) >>> ZSink.collectAll)
-      .map(_.reverse)
-
-    val processedSource = source
+    source
       .via(ZPipeline.utfDecode)
       .via(ZPipeline.splitLines)
       .mapError(e => CsvFailure.ReadingError(path, e.getMessage, e))
-
-    (processedSource
-      >>> sink).foldZIO(
-      ZIO.fail,
-      errors =>
-        if errors.isEmpty then ZIO.succeed(())
-        else ZIO.fail(errors.reduce(_ + _))
-    )
+      .via(zipWithLineNumber)
+      .drop(1) // drop header line
+      .map((line, lineNumber) => validateLine(path, line, lineNumber, schema))
+      .collectLeft
+      .runCollect
+      .map(_.reverse)
+      .foldZIO(
+        ZIO.fail,
+        errors =>
+          if errors.isEmpty then ZIO.succeed(())
+          else ZIO.fail(errors.reduce(_ + _))
+      )
 
   private def validateFileWithAggregation[R, L, Z](
       source: ZStream[Any, Throwable, Byte],
