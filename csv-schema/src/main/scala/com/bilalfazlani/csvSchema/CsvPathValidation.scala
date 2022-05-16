@@ -23,13 +23,14 @@ trait CsvPathValidation {
       path: Path
   ): IO[CsvFailure, Unit]
 
-  def validateFilesAndAggregate[R, Z](
+  def validateFilesAndAggregate[R, Z, Z1](
       schema: CsvSchema,
       paths: NonEmptyChunk[Path]
   )(
       sink: ZSink[R, Throwable, Byte, ?, Z],
-      reduce: (Z, Z) => Z
-  ): ZIO[Scope & R, CsvFailure, Z]
+      zero: Z1,
+      fold: (Z1, Z) => Z1
+  ): ZIO[Scope & R, CsvFailure, Z1]
 
   def validateFileAndAggregate[R, Z](
       schema: CsvSchema,
@@ -191,20 +192,26 @@ object CsvPathValidation extends CsvPathValidation {
       schema: CsvSchema,
       path: Path
   )(
-      sink: ZSink[R, Throwable, Byte, ?, Z]
+      aggregateSink: ZSink[R, Throwable, Byte, ?, Z]
   ): ZIO[Scope & R, CsvFailure, Z] =
-    validateFilesAndAggregate(
-      schema,
-      NonEmptyChunk(path)
-    )(sink, (a, _) => a)
+    for {
+      _ <- validateCsvHeaders(NonEmptyChunk(path))
+      result <- validateFileWithAggregation(
+        ZStream.fromFile(path.toFile, 1024),
+        path,
+        schema,
+        aggregateSink
+      )
+    } yield result
 
-  def validateFilesAndAggregate[R, Z](
+  def validateFilesAndAggregate[R, Z, Z1](
       schema: CsvSchema,
       paths: NonEmptyChunk[Path]
   )(
-      sink: ZSink[R, Throwable, Byte, ?, Z],
-      reduce: (Z, Z) => Z
-  ): ZIO[Scope & R, CsvFailure, Z] =
+      fileSink: ZSink[R, Throwable, Byte, ?, Z],
+      zero: Z1,
+      fold: (Z1, Z) => Z1
+  ): ZIO[Scope & R, CsvFailure, Z1] =
     for {
       _ <- validateCsvHeaders(paths)
       chunks <-
@@ -214,13 +221,13 @@ object CsvPathValidation extends CsvPathValidation {
               ZStream.fromFile(p.toFile, 1024),
               p,
               schema,
-              sink
+              fileSink
             ).map((p, _))
           )
           .mapError(_.reduce(_ + _))
       sorted = chunks.sortBy(_._1.toString).map(_._2)
-      reduced = sorted.reduce(reduce)
-    } yield reduced
+      folded = sorted.foldLeft(zero)(fold)
+    } yield folded
 
   private def validateCsvHeaders(
       allCsvPaths: NonEmptyChunk[Path]
