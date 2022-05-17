@@ -188,5 +188,5 @@ object StringSchemaValidation extends ZIOSpecDefault {
         )
       )
     },
-  )
+  ) @@ TestAspect.timeout(5.seconds)
 }

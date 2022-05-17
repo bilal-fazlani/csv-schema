@@ -1,5 +1,6 @@
 ThisBuild / scalaVersion := "3.1.2"
 ThisBuild / organization := "com.bilal-fazlani"
+ThisBuild / coverageEnabled := true
 ThisBuild / organizationName := "Bilal Fazlani"
 ThisBuild / testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
 ThisBuild / scmInfo := Some(
@@ -16,8 +17,20 @@ ThisBuild / developers := List(
     url("https://bilal-fazlani.com")
   )
 )
-ThisBuild / licenses := List("MIT License" -> url("https://github.com/bilal-fazlani/csv-schema/blob/main/LICENSE"))
+ThisBuild / licenses := List(
+  "MIT License" -> url(
+    "https://github.com/bilal-fazlani/csv-schema/blob/main/LICENSE"
+  )
+)
 ThisBuild / homepage := Some(url("https://github.com/bilal-fazlani/csv-schema"))
+
+lazy val root = project
+  .in(file("."))
+  .aggregate(csvSchema, example)
+  .settings(
+    name := "csv-schema-root",
+    publish / skip := true
+  )
 
 lazy val csvSchema = project
   .in(file("./csv-schema"))

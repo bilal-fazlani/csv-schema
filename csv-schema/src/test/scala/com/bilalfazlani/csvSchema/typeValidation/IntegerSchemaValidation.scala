@@ -110,5 +110,5 @@ object IntegerSchemaValidation extends ZIOSpecDefault {
         )
       )
     }
-  )
+  ) @@ TestAspect.timeout(5.seconds)
 }

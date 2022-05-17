@@ -81,5 +81,5 @@ object BooleanSchemaValidation extends ZIOSpecDefault {
         )
       )
     }
-  )
+  ) @@ TestAspect.timeout(5.seconds)
 }
