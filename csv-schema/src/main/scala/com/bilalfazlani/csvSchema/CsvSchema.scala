@@ -28,10 +28,8 @@ private given regexDesc: Descriptor[Regex] = Descriptor.from(
 enum CsvDataType:
   case String, Integer, Boolean
 
-sealed trait ColumnSchema derives Descriptor {
+sealed trait ColumnSchema[A] derives Descriptor {
   val columnName: String
-  val required: Boolean
-  val dataType: CsvDataType
 }
 
 object ColumnSchema {
@@ -42,28 +40,22 @@ object ColumnSchema {
       regex: Option[Regex],
       required: Boolean = true,
       allowedValues: Set[String] = Set.empty
-  ) extends ColumnSchema
-      derives Descriptor {
-    val dataType = CsvDataType.String
-  }
+  ) extends ColumnSchema[String]
+      derives Descriptor
 
   case class IntegerSchema(
       columnName: String,
       min: Option[Int],
       max: Option[Int],
       required: Boolean = true
-  ) extends ColumnSchema
-      derives Descriptor {
-    val dataType = CsvDataType.Integer
-  }
+  ) extends ColumnSchema[Int]
+      derives Descriptor
 
   case class BooleanSchema(
       columnName: String,
       required: Boolean = true
-  ) extends ColumnSchema
-      derives Descriptor {
-    val dataType = CsvDataType.Boolean
-  }
+  ) extends ColumnSchema[Boolean]
+      derives Descriptor
 }
 
 // opaque type UniqueIndex = Set[String]
@@ -75,7 +67,7 @@ object ColumnSchema {
 // }
 
 case class CsvSchema(
-    columns: List[ColumnSchema],
+    columns: List[ColumnSchema[?]]
     // uniqueCombinations: Set[UniqueIndex] = Set.empty
 )
 
