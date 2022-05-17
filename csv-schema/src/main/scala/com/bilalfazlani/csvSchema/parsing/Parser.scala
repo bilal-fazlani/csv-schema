@@ -1,7 +1,7 @@
-package com.bilalfazlani.csvSchema
+package com.bilalfazlani.csvSchema.parsing
 
 import zio.prelude.Validation
-import ColumnSchema.*
+import CsvDescriptor.*
 
 enum CsvError:
   case ValueNotFound
@@ -15,27 +15,26 @@ object Reader {
 }
 
 trait Parser[A: Reader] {
-  def parse(schema: ColumnSchema[A], value: String): Validation[CsvError, A]
+  def parse(
+      descriptor: CsvDescriptor[A],
+      value: String
+  ): Validation[CsvError, A]
 }
 
 object Parser {
-
   def parse[A: Parser](
-      schema: ColumnSchema[A],
-      value: String
+      value: String,
+      descriptor: CsvDescriptor[A]
   ): Validation[CsvError, A] =
-    summon[Parser[A]].parse(schema, value)
-
-  given Reader[String] = (s) => if s.isBlank then None else Some(s.trim)
-  given Reader[Int] = (s) => s.trim.toIntOption
-  given Reader[Boolean] = (s) => s.trim.toBooleanOption
+    val parser = summon[Parser[A]]
+    parser.parse(descriptor, value)
 
   given stringParser: Parser[String] = new Parser[String] {
     override def parse(
-        schema: ColumnSchema[String],
+        descriptor: CsvDescriptor[String],
         value: String
     ): Validation[CsvError, String] =
-      val strSchema = schema.asInstanceOf[StringSchema]
+      val strSchema = descriptor.asInstanceOf[StringDescriptor]
 
       val emptyValidation =
         Validation.fromPredicateWith(CsvError.ValueNotFound)(value)(!_.isBlank)
@@ -75,10 +74,10 @@ object Parser {
 
   given intParser: Parser[Int] = new Parser[Int] {
     override def parse(
-        schema: ColumnSchema[Int],
+        descriptor: CsvDescriptor[Int],
         value: String
     ): Validation[CsvError, Int] =
-      val intSchema = schema.asInstanceOf[IntegerSchema]
+      val intSchema = descriptor.asInstanceOf[IntegerDescriptor]
 
       val emptyValidation =
         Validation.fromPredicateWith(CsvError.ValueNotFound)(value)(!_.isBlank)
@@ -109,10 +108,10 @@ object Parser {
 
   given boolParser: Parser[Boolean] = new Parser[Boolean] {
     override def parse(
-        schema: ColumnSchema[Boolean],
+        descriptor: CsvDescriptor[Boolean],
         value: String
     ): Validation[CsvError, Boolean] =
-      val intSchema = schema.asInstanceOf[BooleanSchema]
+      val intSchema = descriptor.asInstanceOf[BooleanDescriptor]
 
       val emptyValidation =
         Validation.fromPredicateWith(CsvError.ValueNotFound)(value)(!_.isBlank)
@@ -127,9 +126,48 @@ object Parser {
         boolean <- parseValidation
       } yield boolean
   }
+
+  given Reader[String] = (s) => if s.isBlank then None else Some(s.trim)
+  given Reader[Int] = (s) => s.trim.toIntOption
+  given Reader[Boolean] = (s) => s.trim.toBooleanOption
+
+  given optionReader[A: Reader]: Reader[Option[A]] = (s: String) => {
+    val reader = summon[Reader[A]]
+    val mayBeA: Option[A] = reader(s)
+    Some(mayBeA)
+  }
+
+  given optionParser[A: Parser: Reader]: Parser[Option[A]] =
+    new Parser[Option[A]] {
+      def parse(
+          descriptor: CsvDescriptor[Option[A]],
+          value: String
+      ): Validation[CsvError, Option[A]] = {
+        val parser = summon[Parser[A]]
+
+        val optionalDescriptor =
+          descriptor.asInstanceOf[CsvDescriptor.OptionalDescriptor[A]]
+
+        if (!value.isBlank) then
+          parser
+            .parse(optionalDescriptor.descriptor, value)
+            .map(a => Some(a))
+        else Validation.succeed(None)
+      }
+    }
 }
 
-@main def letsgo = {
-  val parsed = Parser.parse(BooleanSchema("abcd", false), "false")
-  println(parsed)
+@main def testing = {
+  val ageDescriptor: CsvDescriptor[Int] =
+    IntegerDescriptor(Some(10), Some(50))
+  val parsedAge = Parser.parse("", ageDescriptor)
+  println(parsedAge)
+
+  val optionalAgeDescriptor: CsvDescriptor[Option[Int]] =
+    IntegerDescriptor(Some(10), Some(50)).optional
+
+  import Parser.given
+
+  val parsedAge2 = Parser.parse("20", optionalAgeDescriptor)
+  println(parsedAge2)
 }
