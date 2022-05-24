@@ -13,6 +13,7 @@ object Libs {
   lazy val zioConfigMagnolia =
     zioOrg %% "zio-config-magnolia" % zioConfigVersion
   lazy val zioConfigYaml = zioOrg %% "zio-config-yaml" % zioConfigVersion
+  lazy val hasher = ("com.outr" %% "hasher" % "1.2.2").cross(CrossVersion.for3Use2_13)
 //------------------------------------------------------------------------------
 
   lazy val stdLib = "org.scala-lang.modules" % "scala-collection-compat_2.13"

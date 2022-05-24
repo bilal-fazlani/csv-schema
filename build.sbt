@@ -26,7 +26,7 @@ ThisBuild / homepage := Some(url("https://github.com/bilal-fazlani/csv-schema"))
 
 lazy val root = project
   .in(file("."))
-  .aggregate(csvSchema, example)
+  .aggregate(csvSchema, csvSchemaExperimental, example)
   .settings(
     name := "csv-schema-root",
     publish / skip := true
@@ -38,6 +38,25 @@ lazy val csvSchema = project
     name := "csv-schema",
     libraryDependencies ++= Seq(
       Libs.zio,
+      Libs.hasher,
+      Libs.zioNio,
+      Libs.zioPrelude,
+      Libs.zioConfigYaml,
+      Libs.zioConfigMagnolia,
+      Libs.zioTest,
+      Libs.zioTestSbt
+    ),
+    excludeDependencies += Libs.stdLib
+  )
+
+lazy val csvSchemaExperimental = project
+  .in(file("./csv-schema-experimental"))
+  .settings(
+    name := "csv-schema-experimental",
+    publish / skip := true,
+    libraryDependencies ++= Seq(
+      Libs.zio,
+      Libs.hasher,
       Libs.zioNio,
       Libs.zioPrelude,
       Libs.zioConfigYaml,
@@ -55,4 +74,4 @@ lazy val example = project
     publish / skip := true,
     excludeDependencies += Libs.stdLib
   )
-  .dependsOn(csvSchema)
+  .dependsOn(csvSchema, csvSchemaExperimental)
