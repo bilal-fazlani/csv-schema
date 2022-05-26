@@ -11,6 +11,8 @@ import zio.nio.file.Files
 import zio.nio.file.Path
 import scala.util.matching.Regex
 import scala.util.Try
+import zio.stream.ZStream
+import zio.stream.ZPipeline
 
 private given setDesc[A: Descriptor]: Descriptor[Set[A]] = Descriptor.from(
   Descriptor[List[A]].transform(_.toSet, _.toList)
@@ -87,12 +89,21 @@ object CsvSchema {
 
   def apply(path: Path): IO[CsvFailure, CsvSchema] =
     ZIO.ifZIO(Files.exists(path))(
-      read(
-        CsvSchema.configDescriptor from YamlConfigSource
-          .fromYamlPath(
-            path.toFile.toPath
+      ZStream
+        .fromFile(path.toFile, 1024)
+        .via(ZPipeline.utfDecode)
+        .runCollect
+        .map(_.mkString)
+        .flatMap(str =>
+          read(
+            CsvSchema.configDescriptor from YamlConfigSource
+              .fromYamlString(
+                str,
+                "csv schema file"
+              )
           )
-      ).mapError(e => CsvFailure.SchemaParsingError(path, e)),
+        )
+        .mapError(e => CsvFailure.SchemaParsingError(path, e)),
       ZIO.fail(CsvFailure.SchemaFileNotFound(path))
     )
 }

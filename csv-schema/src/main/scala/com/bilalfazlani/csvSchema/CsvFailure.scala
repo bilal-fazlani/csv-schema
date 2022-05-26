@@ -49,18 +49,18 @@ enum CsvFailure:
     case CsvFailure.SyntaxValidationError(path, lineNumber, message) =>
       val top = s"syntax error at ${path}:$lineNumber"
       val bottom = pad(message, 1)
-      top + Properties.lineSeparator + bottom
+      top + newLine + bottom
 
     case CsvFailure.SchemaValidationError(path, lineNumber, errors) =>
       val top = s"validation failed at ${path}:$lineNumber"
       val children = errors.map(e => showFieldValidationError(e))
-      children.prepended(top).mkString(Properties.lineSeparator)
+      children.prepended(top).mkString(newLine)
 
     case CsvFailure.ProcessingError(path, cause) =>
       val top = s"error occured while executing aggregate sink for file - $path"
       val children = cause.getStackTrace
         .map(st => "  " + st.toString)
-      children.prepended(top).mkString(Properties.lineSeparator)
+      children.prepended(top).mkString(newLine)
   }
 
   private def pad(v: String, level: Int): String = ("  - " * level) + v
