@@ -15,7 +15,9 @@ enum CsvFailure:
       lineNumber: Long,
       errorMessage: String
   )
-  case ReadingError(file: Path, error: String, cause: Throwable)
+  case SchemaFileNotFound(file: Path)
+  case CsvReadingError(file: Path, cause: Throwable)
+  case SchemaParsingError(file: Path, cause: Throwable)
   case ProcessingError(file: Path, cause: Throwable)
   case Multiple(errors: Seq[CsvFailure])
 
@@ -34,10 +36,15 @@ enum CsvFailure:
       seq.foldRight[String]("")((e, str) =>
         str + Properties.lineSeparator + e.toString
       )
-    case CsvFailure.ReadingError(path, err, cause) =>
-      s"error while reading path: ${path}, message: $err" + newLine +
-        cause.getMessage + newLine +
-        cause.getStackTrace.mkString(newLine)
+
+    case CsvFailure.SchemaParsingError(path, e) =>
+      s"could not parse schema at $path"
+
+    case CsvFailure.CsvReadingError(path, cause) =>
+      s"could not read file $path"
+
+    case CsvFailure.SchemaFileNotFound(path) =>
+      s"schema file not found at ${path}"
 
     case CsvFailure.SyntaxValidationError(path, lineNumber, message) =>
       val top = s"syntax error at ${path}:$lineNumber"

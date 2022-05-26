@@ -75,7 +75,7 @@ object ColumnSchema {
 // }
 
 case class CsvSchema(
-    columns: List[ColumnSchema],
+    columns: List[ColumnSchema]
     // uniqueCombinations: Set[UniqueIndex] = Set.empty
 )
 
@@ -85,12 +85,14 @@ object CsvSchema {
       toKebabCase
     )
 
-  def apply(path: Path): IO[CsvFailure.ReadingError, CsvSchema] = read(
-    CsvSchema.configDescriptor from YamlConfigSource
-      .fromYamlPath(
-        path.toFile.toPath
-      )
-  ).mapError(e =>
-    CsvFailure.ReadingError(path, "could not read/parse schema", e)
-  )
+  def apply(path: Path): IO[CsvFailure, CsvSchema] =
+    ZIO.ifZIO(Files.exists(path))(
+      read(
+        CsvSchema.configDescriptor from YamlConfigSource
+          .fromYamlPath(
+            path.toFile.toPath
+          )
+      ).mapError(e => CsvFailure.SchemaParsingError(path, e)),
+      ZIO.fail(CsvFailure.SchemaFileNotFound(path))
+    )
 }

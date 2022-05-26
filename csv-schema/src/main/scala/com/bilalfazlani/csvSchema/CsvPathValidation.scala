@@ -143,7 +143,7 @@ object CsvPathValidation extends CsvPathValidation {
     val stream = source
       .via(ZPipeline.utfDecode)
       .via(ZPipeline.splitLines)
-      .mapError(e => CsvFailure.ReadingError(path, e.getMessage, e))
+      .mapError(e => CsvFailure.CsvReadingError(path, e))
       .via(zipWithLineNumber)
       .map {
         case (line, 1) =>
