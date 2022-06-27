@@ -50,6 +50,25 @@ ab cd, Delhi, false, 2
 asasd, Mumbai, true, 20
 ```
 
+```scala
+import zio.*
+import com.bilalfazlani.csvSchema.*
+import zio.nio.file.Path
+import zio.Console.*
+
+object ExampleApp extends ZIOAppDefault {
+  def run =
+    CsvSchema(Path("./example/test.schema.yml"))
+      .flatMap(schema =>
+        CsvValidation.validate(schema, Path("./example/data-invalid.csv"))
+      )
+      .provideSome[Scope](CsvValidation.live)
+      .tapError(e => printLineError(e.toString))
+      .zipRight(printLine("Valid data"))
+      .exitCode
+}
+```
+
 Error reporting
 
 ```

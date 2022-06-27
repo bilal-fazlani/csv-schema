@@ -38,7 +38,6 @@ lazy val csvSchema = project
     name := "csv-schema",
     libraryDependencies ++= Seq(
       Libs.zio,
-      Libs.hasher,
       Libs.zioNio,
       Libs.zioPrelude,
       Libs.zioConfigYaml,

@@ -13,8 +13,6 @@ import zio.prelude.NonEmptySet
 import zio.NonEmptyChunk
 import zio.stream.ZSink
 import zio.stream.ZPipeline
-import com.roundeights.hasher.Foldable
-import com.roundeights.hasher.Algo
 
 object SingleFileValidation extends ZIOSpecDefault {
 
