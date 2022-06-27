@@ -1,0 +1,6 @@
+columns:
+  - string-schema
+      column-name: name
+  max-length: 100
+      min-length: 3
+      regex: "[a-zA-Z]*"

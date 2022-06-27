@@ -39,20 +39,31 @@ sealed trait ColumnSchema derives Descriptor {
 object ColumnSchema {
   case class StringSchema(
       columnName: String,
-      maxLength: Option[Int],
-      minLength: Option[Int],
-      regex: Option[Regex],
+      maxLength: Option[Int] = None,
+      minLength: Option[Int] = None,
+      regex: Option[Regex] = None,
       required: Boolean = true,
       allowedValues: Set[String] = Set.empty
   ) extends ColumnSchema
       derives Descriptor {
     val dataType = CsvDataType.String
+
+    override def equals(x: Any): Boolean = x match {
+      case x: StringSchema =>
+        this.columnName == x.columnName &&
+          this.maxLength == x.maxLength &&
+          this.minLength == x.minLength &&
+          this.regex.map(_.toString) == x.regex.map(_.toString) &&
+          this.required == x.required &&
+          this.allowedValues == x.allowedValues
+      case _ => false
+    }
   }
 
   case class IntegerSchema(
       columnName: String,
-      min: Option[Int],
-      max: Option[Int],
+      min: Option[Int] = None,
+      max: Option[Int] = None,
       required: Boolean = true
   ) extends ColumnSchema
       derives Descriptor {

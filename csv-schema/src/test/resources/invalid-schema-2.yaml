@@ -1,0 +1,3 @@
+columns:
+  - string-schema:
+      name: abc
