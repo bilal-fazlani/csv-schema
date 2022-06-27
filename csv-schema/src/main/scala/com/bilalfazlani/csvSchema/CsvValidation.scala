@@ -10,34 +10,30 @@ import zio.prelude.Validation
 import zio.stream.ZSink
 import zio.Scope
 import zio.NonEmptyChunk
+import zio.ZLayer
 
-trait CsvPathValidation {
-  def validateFiles(
+trait CsvValidation {
+  def validate(
       schema: CsvSchema,
-      paths: NonEmptyChunk[Path]
+      path: Path,
+      paths: Path*
   ): ZIO[Scope, CsvFailure, Unit]
-
-  def validateFile(
-      schema: CsvSchema,
-      path: Path
-  ): ZIO[Scope, CsvFailure, Unit]
-
-  def validateFileAndAggregate[R, Z](
-      schema: CsvSchema,
-      path: Path
-  )(
-      sink: ZSink[R, Throwable, Byte, ?, Z]
-  ): ZIO[Scope & R, CsvFailure, Z]
-
-  def validateFilesAndAggregate[R, Z](
-      schema: CsvSchema,
-      paths: NonEmptyChunk[Path]
-  )(
-      sink: ZSink[R, Throwable, Byte, ?, Z]
-  ): ZIO[Scope & R, CsvFailure, Map[Path, Z]]
 }
 
-object CsvPathValidation extends CsvPathValidation {
+object CsvValidation {
+  val live = ZLayer.succeed(CsvValidationLive)
+
+  def validate(schema: CsvSchema, path: Path, paths: Path*) =
+    ZIO.serviceWithZIO[CsvValidation](
+      _.validate(
+        schema,
+        path,
+        paths*
+      )
+    )
+}
+
+object CsvValidationLive extends CsvValidation {
 
   private def validateHeader(
       path: Path,
@@ -176,35 +172,14 @@ object CsvPathValidation extends CsvPathValidation {
         } yield ()
       }
 
-  private def validateFileWithAggregation[R, L, Z](
-      source: ZStream[Any, Throwable, Byte],
+  def validate(
+      schema: CsvSchema,
       path: Path,
-      schema: CsvSchema,
-      aggregateSink: ZSink[R, Throwable, Byte, L, Z]
-  ): ZIO[Scope & R, CsvFailure, Z] = {
-    source
-      .broadcast(2, 100)
-      .flatMap { streams =>
-        val validationStream = streams(0)
-        val aggregateStream = streams(1)
-
-        for {
-          validationRef <- validateStream(validationStream)(path, schema).fork
-          resultRef <- (aggregateStream >>> aggregateSink)
-            .mapError(CsvFailure.ProcessingError(path, _))
-            .fork
-          result <- validationRef.join *> resultRef.join
-        } yield result
-      }
-  }
-
-  def validateFile(
-      schema: CsvSchema,
-      path: Path
+      paths: Path*
   ): ZIO[Scope, CsvFailure, Unit] =
-    validateFiles(schema, NonEmptyChunk(path))
+    validateAllFiles(schema, NonEmptyChunk(path))
 
-  def validateFiles(
+  private def validateAllFiles(
       schema: CsvSchema,
       paths: NonEmptyChunk[Path]
   ): ZIO[Scope, CsvFailure, Unit] =
@@ -214,35 +189,4 @@ object CsvPathValidation extends CsvPathValidation {
       )
       .mapError(_.reduce(_ + _))
       .unit
-
-  def validateFileAndAggregate[R, Z](
-      schema: CsvSchema,
-      path: Path
-  )(
-      aggregateSink: ZSink[R, Throwable, Byte, ?, Z]
-  ): ZIO[Scope & R, CsvFailure, Z] =
-    validateFileWithAggregation(
-      ZStream.fromFile(path.toFile, 1024),
-      path,
-      schema,
-      aggregateSink
-    )
-
-  def validateFilesAndAggregate[R, Z](
-      schema: CsvSchema,
-      paths: NonEmptyChunk[Path]
-  )(
-      fileSink: ZSink[R, Throwable, Byte, ?, Z]
-  ): ZIO[Scope & R, CsvFailure, Map[Path, Z]] =
-    ZIO
-      .validatePar(paths)(p =>
-        validateFileWithAggregation(
-          ZStream.fromFile(p.toFile, 1024),
-          p,
-          schema,
-          fileSink
-        ).map((p, _))
-      )
-      .mapError(_.reduce(_ + _))
-      .map(_.toMap)
 }
