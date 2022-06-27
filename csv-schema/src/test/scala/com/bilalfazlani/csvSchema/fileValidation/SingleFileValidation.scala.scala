@@ -22,7 +22,7 @@ object SingleFileValidation extends ZIOSpecDefault {
   private def pathOf(path: Path) =
     (Path("./csv-schema/src/test/resources") / path)
 
-  private val schema = CsvSchema(columns =
+  private val schema = CsvSchema.Inline(columns =
     List(
       ColumnSchema.StringSchema(
         columnName = "name",

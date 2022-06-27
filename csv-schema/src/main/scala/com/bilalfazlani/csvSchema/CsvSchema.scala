@@ -51,11 +51,11 @@ object ColumnSchema {
     override def equals(x: Any): Boolean = x match {
       case x: StringSchema =>
         this.columnName == x.columnName &&
-          this.maxLength == x.maxLength &&
-          this.minLength == x.minLength &&
-          this.regex.map(_.toString) == x.regex.map(_.toString) &&
-          this.required == x.required &&
-          this.allowedValues == x.allowedValues
+        this.maxLength == x.maxLength &&
+        this.minLength == x.minLength &&
+        this.regex.map(_.toString) == x.regex.map(_.toString) &&
+        this.required == x.required &&
+        this.allowedValues == x.allowedValues
       case _ => false
     }
   }
@@ -87,34 +87,34 @@ object ColumnSchema {
 //   def apply(columnNames: Set[String]): UniqueIndex = columnNames
 // }
 
-case class CsvSchema(
-    columns: List[ColumnSchema]
-    // uniqueCombinations: Set[UniqueIndex] = Set.empty
-)
+sealed trait CsvSchema
 
 object CsvSchema {
-  private val configDescriptor: ConfigDescriptor[CsvSchema] =
-    summon[Descriptor[CsvSchema]].desc.mapKey(
-      toKebabCase
-    )
+  case class Inline(columns: List[ColumnSchema]) extends CsvSchema
+  case class File(path: Path) extends CsvSchema {
+    private val configDescriptor: ConfigDescriptor[CsvSchema.Inline] =
+      summon[Descriptor[CsvSchema.Inline]].desc.mapKey(
+        toKebabCase
+      )
 
-  def apply(path: Path): IO[CsvFailure, CsvSchema] =
-    ZIO.ifZIO(Files.exists(path))(
-      ZStream
-        .fromFile(path.toFile, 1024)
-        .via(ZPipeline.utfDecode)
-        .runCollect
-        .map(_.mkString)
-        .flatMap(str =>
-          read(
-            CsvSchema.configDescriptor from YamlConfigSource
-              .fromYamlString(
-                str,
-                "csv schema file"
-              )
+    def load: IO[CsvFailure, CsvSchema.Inline] =
+      ZIO.ifZIO(Files.exists(path))(
+        ZStream
+          .fromFile(path.toFile, 1024)
+          .via(ZPipeline.utfDecode)
+          .runCollect
+          .map(_.mkString)
+          .flatMap(str =>
+            read(
+              configDescriptor from YamlConfigSource
+                .fromYamlString(
+                  str,
+                  "csv schema file"
+                )
+            )
           )
-        )
-        .mapError(e => CsvFailure.SchemaParsingError(path, e)),
-      ZIO.fail(CsvFailure.SchemaFileNotFound(path))
-    )
+          .mapError(e => CsvFailure.SchemaParsingError(path, e)),
+        ZIO.fail(CsvFailure.SchemaFileNotFound(path))
+      )
+  }
 }

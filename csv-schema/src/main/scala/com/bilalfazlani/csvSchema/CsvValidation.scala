@@ -1,16 +1,11 @@
 package com.bilalfazlani.csvSchema
 
-import zio.{ZIO, IO, UIO}
-import zio.nio.file.Path
-import zio.nio.file.Files
+import zio.nio.file.{Path, Files}
 import zio.nio.charset.Charset
 import java.io.IOException
-import zio.stream.{ZStream, ZPipeline}
+import zio.stream.*
 import zio.prelude.Validation
-import zio.stream.ZSink
-import zio.Scope
-import zio.NonEmptyChunk
-import zio.ZLayer
+import zio.*
 
 trait CsvValidation {
   def validate(
@@ -39,7 +34,7 @@ object CsvValidationLive extends CsvValidation {
       path: Path,
       line: String,
       lineNumber: Long,
-      schema: CsvSchema
+      schema: CsvSchema.Inline
   ): Either[CsvFailure, Unit] =
     val values = line.split(",", -1)
     val length = values.length
@@ -91,7 +86,7 @@ object CsvValidationLive extends CsvValidation {
       path: Path,
       line: String,
       lineNumber: Long,
-      schema: CsvSchema
+      schema: CsvSchema.Inline
   ): Either[CsvFailure, Unit] =
     val values = line.split(",", -1)
     val length = values.length
@@ -134,8 +129,8 @@ object CsvValidationLive extends CsvValidation {
       source: ZStream[Any, Throwable, Byte]
   )(
       path: Path,
-      schema: CsvSchema
-  ): ZIO[Scope, CsvFailure, Unit] =
+      schema: CsvSchema.Inline
+  ) =
     val stream = source
       .via(ZPipeline.utfDecode)
       .via(ZPipeline.splitLines)
@@ -177,10 +172,13 @@ object CsvValidationLive extends CsvValidation {
       path: Path,
       paths: Path*
   ): ZIO[Scope, CsvFailure, Unit] =
-    validateAllFiles(schema, NonEmptyChunk(path))
+    (schema match {
+      case inline @ CsvSchema.Inline(_) => ZIO.succeed(inline)
+      case file @ CsvSchema.File(path)        => file.load
+    }).flatMap(sch => validateAllFiles(sch, NonEmptyChunk(path)))
 
   private def validateAllFiles(
-      schema: CsvSchema,
+      schema: CsvSchema.Inline,
       paths: NonEmptyChunk[Path]
   ): ZIO[Scope, CsvFailure, Unit] =
     ZIO

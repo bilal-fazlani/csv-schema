@@ -11,7 +11,7 @@ object SchemaLoadingTest extends ZIOSpecDefault {
     (Path("./csv-schema/src/test/resources") / path)
 
   private def invalidTest(testName: String, fileName: String) = test(testName) {
-    val schema = CsvSchema(pathOf(fileName))
+    val schema = CsvSchema.File(pathOf(fileName)).load
     assertZIO(schema.exit)(
       fails(
         isSubtype[CsvFailure.SchemaParsingError](
@@ -23,7 +23,7 @@ object SchemaLoadingTest extends ZIOSpecDefault {
 
   val spec = suite("SchemaLoadingTest")(
     test("load schema successfully") {
-      val expectedSchema = CsvSchema(columns =
+      val expectedSchema = CsvSchema.Inline(columns =
         List(
           ColumnSchema.StringSchema(
             columnName = "name",
@@ -50,10 +50,10 @@ object SchemaLoadingTest extends ZIOSpecDefault {
           )
         )
       )
-      assertZIO(CsvSchema(pathOf("schema.yml")))(equalTo(expectedSchema))
+      assertZIO(CsvSchema.File(pathOf("schema.yml")).load)(equalTo(expectedSchema))
     },
     test("return error when file does not exist") {
-      assertZIO(CsvSchema(pathOf("no-schema.yml")).exit)(
+      assertZIO(CsvSchema.File(pathOf("no-schema.yml")).load.exit)(
         fails(
           equalTo(
             CsvFailure.SchemaFileNotFound(pathOf("no-schema.yml"))
