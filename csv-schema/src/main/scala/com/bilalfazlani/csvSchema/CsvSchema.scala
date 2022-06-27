@@ -34,6 +34,9 @@ sealed trait ColumnSchema derives Descriptor {
   val columnName: String
   val required: Boolean
   val dataType: CsvDataType
+
+  infix def &(other: ColumnSchema): CsvSchema.Inline =
+    CsvSchema.Inline(columns = List(this, other))
 }
 
 object ColumnSchema {
@@ -90,7 +93,10 @@ object ColumnSchema {
 sealed trait CsvSchema
 
 object CsvSchema {
-  case class Inline(columns: List[ColumnSchema]) extends CsvSchema
+  case class Inline(columns: List[ColumnSchema]) extends CsvSchema {
+    infix def & (other: ColumnSchema): CsvSchema.Inline =
+      CsvSchema.Inline(columns = columns appended other)
+  }
   case class File(path: Path) extends CsvSchema {
     private val configDescriptor: ConfigDescriptor[CsvSchema.Inline] =
       summon[Descriptor[CsvSchema.Inline]].desc.mapKey(

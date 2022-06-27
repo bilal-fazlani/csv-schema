@@ -6,7 +6,7 @@ Validate csv files agaists a schema
 
 ### Dependencies
 
-Supports Scala 3 and ZIO 2.0.0
+Supports Scala 3 and ZIO 2
 
 ```scala
 libraryDependencies += "com.bilal-fazlani" %% "csv-schema" % "<VERSION>"
@@ -70,6 +70,28 @@ object ExampleApp extends ZIOAppDefault {
       .zipRight(printLine("Valid data"))
       .exitCode
 }
+```
+
+You can also create schema programatically inline
+
+```scala
+  val schema: CsvSchema = StringSchema(
+    columnName = "name",
+    maxLength = Some(100),
+    minLength = Some(3),
+    regex = Some("[a-zA-Z]*".r)
+  ) &
+    StringSchema(
+      columnName = "city",
+      allowedValues = Set("Mumbai", "Pune", "Delhi")
+    ) &
+    BooleanSchema(columnName = "selfEmployed") &
+    IntegerSchema(
+      columnName = "age",
+      min = Some(10),
+      max = Some(100),
+      required = false
+    )
 ```
 
 Error reporting

@@ -5,6 +5,7 @@ import zio.test.Assertion.*
 import zio.nio.file.Path
 import zio.test.TestConstructor.WithOut
 import zio.ZIO
+import ColumnSchema.*
 
 object SchemaLoadingTest extends ZIOSpecDefault {
   private def pathOf(path: String) =
@@ -23,34 +24,34 @@ object SchemaLoadingTest extends ZIOSpecDefault {
 
   val spec = suite("SchemaLoadingTest")(
     test("load schema successfully") {
-      val expectedSchema = CsvSchema.Inline(columns =
-        List(
-          ColumnSchema.StringSchema(
-            columnName = "name",
-            maxLength = Some(100),
-            minLength = Some(3),
-            regex = Some("[a-zA-Z]*".r)
-          ),
-          ColumnSchema.StringSchema(
+      val expectedSchema =
+        StringSchema(
+          columnName = "name",
+          maxLength = Some(100),
+          minLength = Some(3),
+          regex = Some("[a-zA-Z]*".r)
+        ) &
+          StringSchema(
             columnName = "city",
             allowedValues = Set(
               "Mumbai",
               "Pune",
               "Delhi"
             )
-          ),
-          ColumnSchema.BooleanSchema(
+          ) &
+          BooleanSchema(
             columnName = "selfEmployed"
-          ),
-          ColumnSchema.IntegerSchema(
+          ) &
+          IntegerSchema(
             columnName = "age",
             min = Some(10),
             max = Some(100),
             required = false
           )
-        )
+
+      assertZIO(CsvSchema.File(pathOf("schema.yml")).load)(
+        equalTo(expectedSchema)
       )
-      assertZIO(CsvSchema.File(pathOf("schema.yml")).load)(equalTo(expectedSchema))
     },
     test("return error when file does not exist") {
       assertZIO(CsvSchema.File(pathOf("no-schema.yml")).load.exit)(
