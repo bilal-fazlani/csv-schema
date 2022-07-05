@@ -13,5 +13,6 @@ object Validator {
       case s: ColumnSchema.BooleanSchema => s.validate(value)
       case s: ColumnSchema.IntegerSchema => s.validate(value)
       case s: ColumnSchema.StringSchema  => s.validate(value)
+      case s: ColumnSchema.DoubleSchema  => s.validate(value)
     }
 }

@@ -1,3 +1,3 @@
-name, city, selfEmployed, age
-asasd, Mumbai, true, 20
-zsdf, Delhi , false, 25
+name, city, selfEmployed, age, salary
+asasd, Mumbai, true, 20, 7023.00534
+zsdf, Delhi , false, 25, 2023

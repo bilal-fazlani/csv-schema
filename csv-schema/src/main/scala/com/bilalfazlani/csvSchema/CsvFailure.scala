@@ -37,7 +37,7 @@ enum CsvFailure:
       )
 
     case CsvFailure.SchemaParsingError(path, e) =>
-      s"could not parse schema at $path"
+      s"could not parse schema from file: $path"
 
     case CsvFailure.CsvReadingError(path, cause) =>
       s"could not read file $path"

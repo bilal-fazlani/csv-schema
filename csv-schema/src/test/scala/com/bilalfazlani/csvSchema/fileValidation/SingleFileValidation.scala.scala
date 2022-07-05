@@ -1,18 +1,18 @@
 package com.bilalfazlani.csvSchema
 package fileValidation
 
-import zio.test.*
-import zio.test.Assertion.*
-import zio.nio.file.Path
-import zio.nio.file.Files
-import zio.nio.charset.Charset
-import zio.ZIO
-import zio.test.TestAspect.timeout
-import zio.durationInt
-import zio.prelude.NonEmptySet
 import zio.NonEmptyChunk
-import zio.stream.ZSink
+import zio.ZIO
+import zio.durationInt
+import zio.nio.charset.Charset
+import zio.nio.file.Files
+import zio.nio.file.Path
+import zio.prelude.NonEmptySet
 import zio.stream.ZPipeline
+import zio.stream.ZSink
+import zio.test.Assertion.*
+import zio.test.TestAspect.timeout
+import zio.test.*
 
 object SingleFileValidation extends ZIOSpecDefault {
 
@@ -45,6 +45,12 @@ object SingleFileValidation extends ZIOSpecDefault {
         columnName = "age",
         min = Some(10),
         max = Some(100),
+        required = false
+      ),
+      ColumnSchema.DoubleSchema(
+        columnName = "salary",
+        min = Some(1000.0002),
+        max = Some(8000.999),
         required = false
       )
     )
@@ -120,7 +126,7 @@ object SingleFileValidation extends ZIOSpecDefault {
               hasSameElements(
                 NonEmptyChunk(
                   syntaxErr(
-                    "2 value(s) found in header. expected number of values: 4"
+                    "2 value(s) found in header. expected number of values: 5"
                   ),
                   syntaxErr(
                     "expected header: 'name', found: 'city'"

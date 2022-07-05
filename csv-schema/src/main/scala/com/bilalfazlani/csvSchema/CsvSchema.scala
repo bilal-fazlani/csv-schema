@@ -9,10 +9,11 @@ import zio.config.yaml.YamlConfig
 import zio.config.yaml.YamlConfigSource
 import zio.nio.file.Files
 import zio.nio.file.Path
-import scala.util.matching.Regex
-import scala.util.Try
-import zio.stream.ZStream
 import zio.stream.ZPipeline
+import zio.stream.ZStream
+
+import scala.util.Try
+import scala.util.matching.Regex
 
 private given setDesc[A: Descriptor]: Descriptor[Set[A]] = Descriptor.from(
   Descriptor[List[A]].transform(_.toSet, _.toList)
@@ -28,7 +29,7 @@ private given regexDesc: Descriptor[Regex] = Descriptor.from(
 //   summon[Descriptor[Set[String]]]
 
 enum CsvDataType:
-  case String, Integer, Boolean
+  case String, Integer, Boolean, Double
 
 sealed trait ColumnSchema derives Descriptor {
   val columnName: String
@@ -73,6 +74,16 @@ object ColumnSchema {
     val dataType = CsvDataType.Integer
   }
 
+  case class DoubleSchema(
+      columnName: String,
+      min: Option[Double] = None,
+      max: Option[Double] = None,
+      required: Boolean = true
+  ) extends ColumnSchema
+      derives Descriptor {
+    val dataType = CsvDataType.Double
+  }
+
   case class BooleanSchema(
       columnName: String,
       required: Boolean = true
@@ -94,7 +105,7 @@ sealed trait CsvSchema
 
 object CsvSchema {
   case class Inline(columns: List[ColumnSchema]) extends CsvSchema {
-    infix def & (other: ColumnSchema): CsvSchema.Inline =
+    infix def &(other: ColumnSchema): CsvSchema.Inline =
       CsvSchema.Inline(columns = columns appended other)
   }
   case class File(path: Path) extends CsvSchema {

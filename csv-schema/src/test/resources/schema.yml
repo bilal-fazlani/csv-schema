@@ -17,5 +17,10 @@ columns:
       min: 10
       max: 100
       required: false
+  - double-schema:
+      column-name: salary
+      min: 999.00534
+      max: 80000
+      required: false
 # unique-combinations:
 #   - ["name", "city"]

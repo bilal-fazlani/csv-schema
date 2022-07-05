@@ -8,8 +8,8 @@ enum ValidationRule:
   case MinLength(value: Int)
   case Regex(value: SRegex)
   case AllowedValues(values: Set[String])
-  case Min(value: Long)
-  case Max(value: Long)
+  case Min(value: BigDecimal)
+  case Max(value: BigDecimal)
   case Required
 
 case class FieldSchemaValidationError(

@@ -1,4 +1,4 @@
-ThisBuild / scalaVersion := "3.1.2"
+ThisBuild / scalaVersion := "3.2.0-RC1"
 ThisBuild / organization := "com.bilal-fazlani"
 ThisBuild / coverageEnabled := true
 ThisBuild / organizationName := "Bilal Fazlani"

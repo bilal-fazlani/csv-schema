@@ -47,6 +47,11 @@ object SchemaLoadingTest extends ZIOSpecDefault {
             min = Some(10),
             max = Some(100),
             required = false
+          ) & DoubleSchema(
+            columnName = "salary",
+            min = Some(999.00534),
+            max = Some(80000),
+            required = false
           )
 
       assertZIO(CsvSchema.File(pathOf("schema.yml")).load)(
