@@ -22,39 +22,35 @@ object SingleFileValidation extends ZIOSpecDefault {
   private def pathOf(path: Path) =
     (Path("./csv-schema/src/test/resources") / path)
 
-  private val schema = CsvSchema.Inline(columns =
-    List(
-      ColumnSchema.StringSchema(
-        columnName = "name",
-        maxLength = Some(100),
-        minLength = Some(3),
-        regex = Some("[a-zA-Z]*".r)
-      ),
-      ColumnSchema.StringSchema(
-        columnName = "city",
-        allowedValues = Set(
-          "Mumbai",
-          "Pune",
-          "Delhi"
-        )
-      ),
-      ColumnSchema.BooleanSchema(
-        columnName = "selfEmployed"
-      ),
-      ColumnSchema.IntegerSchema(
-        columnName = "age",
-        min = Some(10),
-        max = Some(100),
-        required = false
-      ),
-      ColumnSchema.DoubleSchema(
-        columnName = "salary",
-        min = Some(1000.0002),
-        max = Some(8000.999),
-        required = false
+  private val schema = ColumnSchema.StringSchema(
+    columnName = "name",
+    maxLength = Some(100),
+    minLength = Some(3),
+    regex = Some("[a-zA-Z]*".r)
+  ) &
+    ColumnSchema.StringSchema(
+      columnName = "city",
+      allowedValues = Set(
+        "Mumbai",
+        "Pune",
+        "Delhi"
       )
+    ) &
+    ColumnSchema.BooleanSchema(
+      columnName = "selfEmployed"
+    ) &
+    ColumnSchema.IntegerSchema(
+      columnName = "age",
+      min = Some(10),
+      max = Some(100),
+      required = false
+    ) &
+    ColumnSchema.DoubleSchema(
+      columnName = "salary",
+      min = Some(1000.0002),
+      max = Some(8000.999),
+      required = false
     )
-  )
 
   def spec =
     suite("Single file validation")(

@@ -36,6 +36,11 @@ columns:
       min: 10
       max: 100
       required: false
+  - double-schema:
+      column-name: salary
+      min: 999.00534
+      max: 80000
+      required: false      
 ```
 
 CSV file
@@ -75,21 +80,33 @@ object ExampleApp extends ZIOAppDefault {
 You can also create schema programatically inline
 
 ```scala
-  val schema: CsvSchema = StringSchema(
+  val schema: CsvSchema = ColumnSchema.StringSchema(
     columnName = "name",
     maxLength = Some(100),
     minLength = Some(3),
     regex = Some("[a-zA-Z]*".r)
   ) &
-    StringSchema(
+    ColumnSchema.StringSchema(
       columnName = "city",
-      allowedValues = Set("Mumbai", "Pune", "Delhi")
+      allowedValues = Set(
+        "Mumbai",
+        "Pune",
+        "Delhi"
+      )
     ) &
-    BooleanSchema(columnName = "selfEmployed") &
-    IntegerSchema(
+    ColumnSchema.BooleanSchema(
+      columnName = "selfEmployed"
+    ) &
+    ColumnSchema.IntegerSchema(
       columnName = "age",
       min = Some(10),
       max = Some(100),
+      required = false
+    ) &
+    ColumnSchema.DoubleSchema(
+      columnName = "salary",
+      min = Some(1000.0002),
+      max = Some(8000.999),
       required = false
     )
 ```
