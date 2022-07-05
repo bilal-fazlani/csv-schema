@@ -1,2 +1,2 @@
-name, city, selfEmployed, age
-asasd, Mumbai, true, 20
+name, city, selfEmployed, age, salary
+asasd, Mumbai, true, 20, 60000

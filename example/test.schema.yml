@@ -17,3 +17,7 @@ columns:
       min: 10
       max: 100
       required: false
+  - double-schema:
+      column-name: salary
+      min: 3000.20
+      required: false     

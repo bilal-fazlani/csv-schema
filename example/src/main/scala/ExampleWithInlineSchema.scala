@@ -23,6 +23,10 @@ object ExampleWithInlineSchema extends ZIOAppDefault {
       min = Some(10),
       max = Some(100),
       required = false
+    ) & DoubleSchema(
+      columnName = "salary",
+      min = Some(7800.05),
+      required = false
     )
 
   def run =

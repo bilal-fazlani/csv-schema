@@ -1,7 +1,7 @@
-name, city, selfEmployed, age
-,,,
+name, city, selfEmployed, age, salary
+,,,,
 
-as, Tokyo, dddd, 150
+as, Tokyo, dddd, 150,
 john,
-ab cd, Delhi, false, 2
-asasd, Mumbai, true, 20
+ab cd, Delhi, false, 2,
+asasd, Mumbai, true, 20,
