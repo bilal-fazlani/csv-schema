@@ -1,6 +1,5 @@
 ThisBuild / scalaVersion := "3.2.0-RC4"
 ThisBuild / organization := "com.bilal-fazlani"
-ThisBuild / coverageEnabled := true
 ThisBuild / organizationName := "Bilal Fazlani"
 ThisBuild / testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
 ThisBuild / scmInfo := Some(
