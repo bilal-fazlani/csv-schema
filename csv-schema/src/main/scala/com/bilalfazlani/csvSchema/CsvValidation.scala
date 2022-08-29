@@ -174,8 +174,8 @@ object CsvValidationLive extends CsvValidation {
   ): ZIO[Scope, CsvFailure, Unit] =
     (schema match {
       case inline @ CsvSchema.Inline(_) => ZIO.succeed(inline)
-      case file @ CsvSchema.File(path)        => file.load
-    }).flatMap(sch => validateAllFiles(sch, NonEmptyChunk(path)))
+      case schemaFile @ CsvSchema.File(_)        => schemaFile.load
+    }).flatMap(sch => validateAllFiles(sch, NonEmptyChunk(path, paths*)))
 
   private def validateAllFiles(
       schema: CsvSchema.Inline,

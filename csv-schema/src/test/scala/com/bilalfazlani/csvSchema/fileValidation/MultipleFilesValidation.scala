@@ -14,13 +14,13 @@ import zio.test.Assertion.*
 import zio.test.TestAspect.timeout
 import zio.test.*
 
-object SingleFileValidation extends ZIOSpecDefault {
+object MultipleFilesValidation extends ZIOSpecDefault {
 
-  private def pathOf(path: String) =
-    (Path("./csv-schema/src/test/resources") / path)
+  private def pathOf(str: String) =
+    Path("./csv-schema/src/test/resources") / str
 
   private def pathOf(path: Path) =
-    (Path("./csv-schema/src/test/resources") / path)
+    Path("./csv-schema/src/test/resources") / path
 
   private val schema = ColumnSchema.StringSchema(
     columnName = "name",
@@ -53,66 +53,32 @@ object SingleFileValidation extends ZIOSpecDefault {
     )
 
   def spec =
-    suite("Single file validation")(
+    suite("Multiple files validation")(
       test("successful validation") {
         assertZIO(
           CsvValidationLive.validate(
             schema,
-            pathOf(
-              Path("singleFileValidation") / "noAggregation" / "successful.csv"
-            )
+            pathOf("multipleValidCsvFiles") / "successful.csv",
+            pathOf("multipleValidCsvFiles") / "successful-2.csv",
+            pathOf("multipleValidCsvFiles") / "successful-3.csv"
           )
         )(isUnit)
       },
-      test("empty file") {
-        val path = pathOf(
-          Path(
-            "singleFileValidation"
-          ) / "noAggregation" / "missingHeaders1.csv"
-        )
-        val expectedError =
-          CsvFailure.SyntaxValidationError(path, 1L, "file is empty")
-        val effect = for {
-          validation <- CsvValidationLive.validate(
-            schema,
-            path
-          )
-        } yield validation
+      test("validation with errors"){
+        val path1 = pathOf(Path("multipleCsvFilesWithErrors") / "missingHeaders1.csv")
+        val path2 = pathOf(Path("multipleCsvFilesWithErrors") / "missingHeaders2.csv")
+        val path3 = pathOf(Path("multipleCsvFilesWithErrors") / "differentNumberOfHeaders.csv")
+        val path4 = pathOf(Path("multipleCsvFilesWithErrors") / "successful.csv")
 
-        assertZIO(effect.flip)(equalTo(expectedError))
-      },
-      test("empty header line") {
-        val path = pathOf(
-          Path("singleFileValidation") / "noAggregation" / "missingHeaders2.csv"
-        )
-        val expectedError =
-          CsvFailure.SyntaxValidationError(path, 1L, "header line is blank")
-        val effect = for {
-          validation <- CsvValidationLive.validate(
-            schema,
-            path
-          )
-        } yield validation
-
-        assertZIO(effect.flip)(equalTo(expectedError))
-      },
-      test("header mismatch") {
-        val path = pathOf(
-          Path(
-            "singleFileValidation"
-          ) / "noAggregation" / "dfferentNumberOfHeaders.csv"
-        )
-        val expectedError =
-          CsvFailure.SyntaxValidationError(path, 0L, "-----")
-        val effect = for {
-          validation <- CsvValidationLive.validate(
-            schema,
-            path
-          )
-        } yield validation
-
-        def syntaxErr(str: String) =
+        def syntaxErr(path: Path)(str: String) =
           CsvFailure.SyntaxValidationError(path, 1, str)
+
+        val effect = for {
+          validation <- CsvValidationLive.validate(
+            schema,
+            path1, path2, path3, path4
+          )
+        } yield validation
 
         assertZIO(effect.flip)(
           isSubtype[CsvFailure.Multiple](
@@ -121,13 +87,15 @@ object SingleFileValidation extends ZIOSpecDefault {
               _.errors,
               hasSameElements(
                 NonEmptyChunk(
-                  syntaxErr(
+                  CsvFailure.SyntaxValidationError(path1, 1L, "file is empty"),
+                  CsvFailure.SyntaxValidationError(path2, 1L, "header line is blank"),
+                  syntaxErr(path3)(
                     "2 value(s) found in header. expected number of values: 5"
                   ),
-                  syntaxErr(
+                  syntaxErr(path3)(
                     "expected header: 'name', found: 'city'"
                   ),
-                  syntaxErr(
+                  syntaxErr(path3)(
                     "expected header: 'city', found: ' country'"
                   )
                 )
