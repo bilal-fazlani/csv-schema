@@ -1,4 +1,4 @@
-ThisBuild / scalaVersion := "3.2.0-RC4"
+ThisBuild / scalaVersion := "3.2.0"
 ThisBuild / organization := "com.bilal-fazlani"
 ThisBuild / organizationName := "Bilal Fazlani"
 ThisBuild / testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
